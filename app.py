@@ -849,6 +849,10 @@ with col2:
                         <div style="height: 3px; background-color: {event.get('color', '#3788d8')}; 
                         border-radius: 1px; margin: 5px 0;"></div>
                         """, unsafe_allow_html=True)
+                
+                except Exception as e:
+                    st.warning(f"Error displaying event: {event.get('title', 'Unknown')}")
+                    continue
             
             if not page_events:
                 st.info("No events match the current filters.")
