@@ -557,65 +557,289 @@ with col1:
     with header_col3:
         st.session_state.search_term = st.text_input("🔍 Search", placeholder="Search events...")
     
-    # Calendar display
+    # Live Calendar Display with Multiple Views
     if st.session_state.events:
         calendar_events = format_events_for_calendar(
             st.session_state.events, 
             st.session_state.active_calendar if len(st.session_state.calendars) > 1 else None
         )
         
+        # Enhanced calendar options with live features
         calendar_options = {
             "editable": True,
             "selectable": True,
+            "selectMirror": True,
+            "dayMaxEvents": True,
+            "weekends": st.session_state.app_settings.get('show_weekends', True),
             "headerToolbar": {
                 "left": "prev,next today",
                 "center": "title",
                 "right": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
             },
             "initialView": st.session_state.view_mode,
-            "height": 650,
+            "height": 700,
             "timeZone": st.session_state.timezone,
-            "weekends": st.session_state.app_settings.get('show_weekends', True),
             "eventDisplay": "block",
-            "dayMaxEvents": True,
-            "moreLinkClick": "popover"
+            "moreLinkClick": "popover",
+            "nowIndicator": True,
+            "slotMinTime": "06:00:00",
+            "slotMaxTime": "22:00:00",
+            "allDaySlot": True,
+            "weekNumbers": True,
+            "businessHours": {
+                "daysOfWeek": [1, 2, 3, 4, 5],
+                "startTime": "09:00",
+                "endTime": "17:00"
+            },
+            "eventTimeFormat": {
+                "hour": "2-digit",
+                "minute": "2-digit",
+                "meridiem": "short"
+            },
+            "slotLabelFormat": {
+                "hour": "2-digit",
+                "minute": "2-digit",
+                "meridiem": "short"
+            }
         }
         
+        # Main live calendar
         calendar_result = calendar(
             events=calendar_events,
             options=calendar_options,
             custom_css="""
             .fc-event {
-                border-radius: 4px;
+                border-radius: 6px;
                 border: none;
                 font-size: 12px;
+                font-weight: 500;
+                padding: 2px 4px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            }
+            .fc-event:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
             }
             .fc-event-title {
                 font-weight: 600;
+                font-size: 11px;
+            }
+            .fc-event-time {
+                font-weight: 500;
+                font-size: 10px;
             }
             .fc-daygrid-event {
-                margin: 1px;
+                margin: 1px 2px;
+                border-radius: 4px;
+            }
+            .fc-timegrid-event {
+                border-radius: 4px;
+                border-left-width: 4px;
             }
             .fc-event-past {
                 opacity: 0.7;
             }
+            .fc-today {
+                background-color: rgba(255, 220, 40, 0.15) !important;
+            }
+            .fc-now-indicator {
+                background-color: #ff4757;
+                height: 2px;
+            }
+            .fc-now-indicator-arrow {
+                border-top-color: #ff4757;
+                border-bottom-color: #ff4757;
+            }
+            .fc-button-primary {
+                background-color: #3788d8;
+                border-color: #3788d8;
+            }
+            .fc-button-primary:hover {
+                background-color: #2c6cb7;
+                border-color: #2c6cb7;
+            }
+            .fc-col-header-cell {
+                background-color: #f8f9fa;
+                font-weight: 600;
+            }
+            .fc-scrollgrid {
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }
             """
         )
         
-        # Handle calendar interactions
-        if calendar_result.get('eventClick'):
-            event_id = calendar_result['eventClick']['event']['id']
-            selected_event = next((event for event in st.session_state.events if event['id'] == event_id), None)
-            if selected_event:
-                st.session_state.selected_event = selected_event
+        # Handle live calendar interactions
+        if calendar_result:
+            # Event click handling
+            if calendar_result.get('eventClick'):
+                event_id = calendar_result['eventClick']['event']['id']
+                selected_event = next((event for event in st.session_state.events if event['id'] == event_id), None)
+                if selected_event:
+                    st.session_state.selected_event = selected_event
+                    st.success(f"✅ Selected event: {selected_event['title']}")
+                    st.rerun()
+            
+            # Date selection handling
+            if calendar_result.get('dateClick'):
+                clicked_date = calendar_result['dateClick']['date']
+                st.info(f"📅 Clicked on date: {clicked_date}")
+                # You could auto-fill the add event form with this date
+            
+            # Event drag and drop handling
+            if calendar_result.get('eventChange'):
+                event_change = calendar_result['eventChange']
+                event_id = event_change['event']['id']
+                new_start = event_change['event']['start']
+                new_end = event_change['event']['end']
+                
+                # Update the event in session state
+                for i, event in enumerate(st.session_state.events):
+                    if event['id'] == event_id:
+                        st.session_state.events[i]['start'] = new_start
+                        st.session_state.events[i]['end'] = new_end
+                        st.session_state.events[i]['updated'] = datetime.now().isoformat()
+                        break
+                
+                st.success("✅ Event updated via drag & drop!")
                 st.rerun()
+        
+        # Live mini calendar views
+        st.markdown("---")
+        
+        # Quick view tabs
+        quick_tab1, quick_tab2, quick_tab3 = st.columns(3)
+        
+        with quick_tab1:
+            st.subheader("📅 Today's Events")
+            today = datetime.now().date()
+            today_events = [
+                event for event in st.session_state.events
+                if datetime.fromisoformat(event['start'].replace('Z', '+00:00').replace('+00:00', '')).date() == today
+            ]
+            
+            if today_events:
+                for event in sorted(today_events, key=lambda x: x['start'])[:5]:
+                    try:
+                        start_time = datetime.fromisoformat(event['start'].replace('Z', '+00:00').replace('+00:00', ''))
+                        st.write(f"🕐 **{start_time.strftime('%H:%M')}** - {event['title']}")
+                        if event.get('location'):
+                            st.write(f"   📍 {event['location']}")
+                    except:
+                        st.write(f"📝 {event['title']}")
+            else:
+                st.write("No events today")
+        
+        with quick_tab2:
+            st.subheader("⏰ Upcoming Events")
+            now = datetime.now()
+            upcoming_events = [
+                event for event in st.session_state.events
+                if datetime.fromisoformat(event['start'].replace('Z', '+00:00').replace('+00:00', '')) > now
+            ]
+            upcoming_events.sort(key=lambda x: x['start'])
+            
+            for event in upcoming_events[:5]:
+                try:
+                    start_time = datetime.fromisoformat(event['start'].replace('Z', '+00:00').replace('+00:00', ''))
+                    days_until = (start_time.date() - now.date()).days
+                    
+                    if days_until == 0:
+                        time_str = f"Today {start_time.strftime('%H:%M')}"
+                    elif days_until == 1:
+                        time_str = f"Tomorrow {start_time.strftime('%H:%M')}"
+                    else:
+                        time_str = f"In {days_until} days"
+                    
+                    st.write(f"📅 **{time_str}** - {event['title']}")
+                except:
+                    st.write(f"📝 {event['title']}")
+        
+        with quick_tab3:
+            st.subheader("📊 Live Stats")
+            now = datetime.now()
+            
+            # Real-time calculations
+            events_today = len([e for e in st.session_state.events 
+                              if datetime.fromisoformat(e['start'].replace('Z', '+00:00').replace('+00:00', '')).date() == now.date()])
+            
+            events_this_week = len([e for e in st.session_state.events 
+                                  if datetime.fromisoformat(e['start'].replace('Z', '+00:00').replace('+00:00', '')).isocalendar()[1] == now.isocalendar()[1]])
+            
+            overdue_events = len([e for e in st.session_state.events 
+                                if datetime.fromisoformat(e['start'].replace('Z', '+00:00').replace('+00:00', '')) < now 
+                                and e.get('status', 'confirmed') == 'confirmed'])
+            
+            st.metric("Today", events_today)
+            st.metric("This Week", events_this_week)
+            st.metric("Past Events", overdue_events)
+        
+        # Live calendar legend
+        st.markdown("---")
+        st.subheader("🎨 Calendar Legend")
+        
+        legend_cols = st.columns(len(st.session_state.calendars))
+        for i, (email, cal_info) in enumerate(st.session_state.calendars.items()):
+            with legend_cols[i % len(legend_cols)]:
+                event_count = len([e for e in st.session_state.events if e.get('calendar_email') == email])
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; margin: 5px 0;">
+                    <div style="width: 15px; height: 15px; background-color: {cal_info.get('color', '#3788d8')}; 
+                    border-radius: 3px; margin-right: 8px;"></div>
+                    <span style="font-size: 12px;">{cal_info['name']} ({event_count})</span>
+                </div>
+                """, unsafe_allow_html=True)
+    
     else:
+        # Enhanced empty state with live preview
         st.info("📭 No events to display. Import events or add new ones to get started!")
+        
+        # Show sample calendar view
+        st.markdown("### 📅 Sample Calendar View")
+        sample_events = [
+            {
+                'id': 'sample1', 
+                'title': 'Sample Meeting',
+                'start': datetime.now().replace(hour=10, minute=0).isoformat(),
+                'end': datetime.now().replace(hour=11, minute=0).isoformat(),
+                'color': '#3788d8'
+            },
+            {
+                'id': 'sample2', 
+                'title': 'Sample Event',
+                'start': (datetime.now() + timedelta(days=1)).replace(hour=14, minute=0).isoformat(),
+                'end': (datetime.now() + timedelta(days=1)).replace(hour=15, minute=30).isoformat(),
+                'color': '#33b679'
+            }
+        ]
+        
+        sample_calendar = calendar(
+            events=sample_events,
+            options={
+                "headerToolbar": {
+                    "left": "prev,next",
+                    "center": "title",
+                    "right": "dayGridMonth,timeGridWeek"
+                },
+                "initialView": "dayGridMonth",
+                "height": 400,
+                "editable": False
+            },
+            custom_css="""
+            .fc-event { border-radius: 4px; font-size: 12px; opacity: 0.7; }
+            """
+        )
+        
         st.markdown("""
         **Quick Start:**
         1. 📥 Upload a Google Calendar JSON export, or
         2. ➕ Create a new event using the panel on the right
         3. 📧 Default calendar: `entremotivator@gmail.com`
+        4. 🎯 Click on events to edit them instantly
+        5. 🖱️ Drag events to reschedule them
         """)
 
 with col2:
