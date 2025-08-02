@@ -876,10 +876,11 @@ with col2:
             value=st.session_state.app_settings.get('show_weekends', True)
         )
         
+        default_duration = float(st.session_state.app_settings.get('default_event_duration', 1.0))
         st.session_state.app_settings['default_event_duration'] = st.number_input(
             "Default event duration (hours)", 
             min_value=0.5, max_value=24.0, step=0.5,
-            value=st.session_state.app_settings.get('default_event_duration', 1.0)
+            value=default_duration
         )
         
         # Timezone settings
